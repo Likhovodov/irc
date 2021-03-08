@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta name="viewport" content="width=device-width, height=device-heigth, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+    integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+    integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+    crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
+    integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+    crossorigin="anonymous"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+    integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+    crossorigin="anonymous"></script>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="text/javascript" src="client.js"></script>
+  <link rel="stylesheet" href="client.css">
+
+  <title>IRC</title>
+</head>
+
+<body>
+  <div class="container-fluid mt-3">
+
+    <div class="card" id="registration-card">
+      <div class="card-body">
+        <form id="registration-form">
+          <div class="form-group">
+            <label for="registration-name">Your name:</label>
+            <input type="text" class="form-control" id="registration-name">
+          </div>
+          <button class="btn btn-secondary" type="submit">Submit</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="row" id="main-view" style="display: none;">
+      <div class="col-8">
+        <div class="card">
+          <div class="card-header"><strong id="main-card-title">Welcome!</strong></div>
+          <!-- Main window -->
+          <ul class="list-group list-group-flush scroll" id="message-list">
+            <li class="list-group-item">Cras justo odio</li>
+          </ul>
+          <div class="card-footer">
+            <form id="message-form">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <button class="btn btn-outline-secondary" type="submit">Send</button>
+                </div>
+                <input type="text" class="form-control" id="message-input">
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-2 align-self-stretch ">
+        <div class="card">
+          <div class="card-header"><strong>Users</strong></div>
+          <ul class="list-group list-group-flush scroll" id="user-list">
+          </ul>
+        </div>
+      </div>
+      <div class="col-2 align-self-stretch" style="height: 100%;">
+        <div class="card">
+          <div class="card-header container">
+            <div class="row">
+              <strong class="ml-3">Rooms</strong>
+              <button type="button" class="btn btn-sm btn-outline-light ml-auto mr-3" data-toggle="modal"
+                data-target="#addRoomModal" id="add-room-button">Add</button>
+            </div>
+          </div>
+          <ul class="list-group list-group-flush scroll" id="room-list">
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade" id="addRoomModal" tabindex="-1" role="dialog" aria-labelledby="addRoomModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addRoomModalLabel">Add Room</h5>
+        </div>
+        <div class="modal-body">
+          <form>
+          <div class="form-group">
+            <input type="text" class="form-control" id="room-name-input" placeholder="Room name" data-toggle="tooltip" title="">
+            <p id="input-error" class="invalid-indicator"></p>
+          </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="add-room-modal-button">Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+</body>
+
+</html>
