@@ -11,28 +11,28 @@ const io = socketio(server);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Status constants
-const STATUS_REJECTED = 'REJECTED';
-const STATUS_ACCEPETED = 'ACCEPTED';
+const STATUS_REJECTED = 'STATUS_REJECTED';
+const STATUS_ACCEPETED = 'STATUS_ACCEPETED';
 
 // Client side events
-const EVENT_USERNAME = 'USERNAME';
-const EVENT_DIRECT_MESSAGE_CLIENT = 'DIRECT_MESSAGE_CLIENT';
-const EVENT_ADD_ROOM_CLIENT = 'ADD_ROOM_CLIENT';
-const EVENT_USER_JOINED_ROOM_CLIENT = 'USER_JOINED_ROOM_CLIENT';
-const EVENT_USER_LEFT_ROOM_CLIENT = 'USER_LEFT_ROOM_CLIENT';
-const EVENT_ROOM_MESSAGE_CLIENT = 'EVENT_ROOM_MESSAGE_CLIENT';
-const EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT = 'EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT';
-const EVENT_USER_MESSAGE_MULTIPLE_ROOMS_CLIENT = 'EVENT_USER_MESSAGE_MULTIPLE_ROOMS_CLIENT';
-const EVENT_FETCH_ROOM_MEMBERS_CLIENT = 'EVENT_FETCH_ROOM_MEMBERS_CLIENT';
+const CLIENT_EVENT_USERNAME = 'CLIENT_EVENT_USERNAME';
+const CLIENT_EVENT_DIRECT_MESSAGE = 'CLIENT_EVENT_DIRECT_MESSAGE';
+const CLIENT_EVENT_ADD_ROOM = 'CLIENT_EVENT_ADD_ROOM';
+const CLIENT_EVENT_USER_JOINED_ROOM = 'CLIENT_EVENT_USER_JOINED_ROOM';
+const CLIENT_EVENT_USER_LEFT_ROOM = 'CLIENT_EVENT_USER_LEFT_ROOM';
+const CLIENT_EVENT_ROOM_MESSAGE = 'CLIENT_EVENT_ROOM_MESSAGE';
+const CLIENT_EVENT_USER_JOIN_MULTIPLE_ROOMS = 'CLIENT_EVENT_USER_JOIN_MULTIPLE_ROOMS';
+const CLIENT_EVENT_USER_MESSAGE_MULTIPLE_ROOMS = 'CLIENT_EVENT_USER_MESSAGE_MULTIPLE_ROOMS';
+const CLIENT_EVENT_FETCH_ROOM_MEMBERS = 'CLIENT_EVENT_FETCH_ROOM_MEMBERS';
 
 // Server side events
-const EVENT_USER_JOINED = 'USER_JOINED';
-const EVENT_USER_LEFT = 'USER_LEFT';
-const EVENT_DIRECT_MESSAGE_SERVER = 'DIRECT_MESSAGE_SERVER';
-const EVENT_USER_ROOM_CREATED = 'ROOM_CREATED';
-const EVENT_USER_JOINED_ROOM_SERVER = 'USER_JOINED_ROOM_SERVER';
-const EVENT_USER_LEFT_ROOM_SERVER = 'USER_LEFT_ROOM_SERVER';
-const EVENT_ROOM_MESSAGE_SERVER = 'EVENT_ROOM_MESSAGE_SERVER';
+const SERVER_EVENT_USER_JOINED = 'SERVER_EVENT_USER_JOINED';
+const SERVER_EVENT_USER_LEFT = 'SERVER_EVENT_USER_LEFT';
+const SERVER_EVENT_DIRECT_MESSAGE = 'SERVER_EVENT_DIRECT_MESSAGE';
+const SERVER_EVENT_USER_ROOM_CREATED = 'SERVER_EVENT_USER_ROOM_CREATED';
+const SERVER_EVENT_USER_JOINED_ROOM = 'SERVER_EVENT_USER_JOINED_ROOM';
+const SERVER_EVENT_USER_LEFT_ROOM = 'SERVER_EVENT_USER_LEFT_ROOM';
+const SERVER_EVENT_ROOM_MESSAGE = 'SERVER_EVENT_ROOM_MESSAGE';
 
 const users = new Map(); // Map from socket id to user name
 const rooms = new Map(); // Map from random uuid to room name
@@ -44,21 +44,23 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
   const usersRooms = []; // List of rooms where user is a member
 
+  // When client disconnects
   socket.on('disconnect', () => {
     if (users.has(socket.id)) {
       users.delete(socket.id);
-      socket.broadcast.emit(EVENT_USER_LEFT, socket.id);
+      socket.broadcast.emit(SERVER_EVENT_USER_LEFT, socket.id);
     }
   });
 
-  socket.on(EVENT_USERNAME, (userName, callback) => {
+  // When client registers with a username
+  socket.on(CLIENT_EVENT_USERNAME, (userName, callback) => {
     let callbackStatus = '';
 
     if (Array.from(users.values()).includes(userName)) {
       callbackStatus = STATUS_REJECTED;
     } else {
       users.set(socket.id, userName);
-      socket.broadcast.emit(EVENT_USER_JOINED, socket.id, userName);
+      socket.broadcast.emit(SERVER_EVENT_USER_JOINED, socket.id, userName);
       callbackStatus = STATUS_ACCEPETED;
     }
 
@@ -69,11 +71,13 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on(EVENT_DIRECT_MESSAGE_CLIENT, (userId, message) => {
-    io.to(userId).emit(EVENT_DIRECT_MESSAGE_SERVER, socket.id, message);
+  // When client sends a direct message to some user
+  socket.on(CLIENT_EVENT_DIRECT_MESSAGE, (userId, message) => {
+    io.to(userId).emit(SERVER_EVENT_DIRECT_MESSAGE, socket.id, message);
   });
 
-  socket.on(EVENT_ADD_ROOM_CLIENT, (roomName, callback) => {
+  // When client adds a room
+  socket.on(CLIENT_EVENT_ADD_ROOM, (roomName, callback) => {
     let callbackStatus = STATUS_REJECTED;
     const newRoomId = uuid.v4();
     if (!Array.from(rooms.values()).includes(roomName)) {
@@ -81,7 +85,7 @@ io.on('connection', (socket) => {
       socket.join(newRoomId);
       rooms.set(newRoomId, roomName);
       usersRooms.push(newRoomId);
-      socket.broadcast.emit(EVENT_USER_ROOM_CREATED, newRoomId, roomName);
+      socket.broadcast.emit(SERVER_EVENT_USER_ROOM_CREATED, newRoomId, roomName);
     }
     callback({
       status: callbackStatus,
@@ -89,37 +93,43 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on(EVENT_USER_JOINED_ROOM_CLIENT, (roomId) => {
+  // When client joins a room
+  socket.on(CLIENT_EVENT_USER_JOINED_ROOM, (roomId) => {
     socket.join(roomId);
     usersRooms.push(roomId);
-    socket.to(roomId).emit(EVENT_USER_JOINED_ROOM_SERVER, socket.id, roomId);
+    socket.to(roomId).emit(SERVER_EVENT_USER_JOINED_ROOM, socket.id, roomId);
   });
 
-  socket.on(EVENT_USER_LEFT_ROOM_CLIENT, (roomId) => {
+  // When client leaves a room
+  socket.on(CLIENT_EVENT_USER_LEFT_ROOM, (roomId) => {
     usersRooms.splice(usersRooms.indexOf(roomId), 1);
-    socket.to(roomId).emit(EVENT_USER_LEFT_ROOM_SERVER, socket.id, roomId);
+    socket.to(roomId).emit(SERVER_EVENT_USER_LEFT_ROOM, socket.id, roomId);
     socket.leave(roomId);
   });
 
-  socket.on(EVENT_ROOM_MESSAGE_CLIENT, (roomId, message) => {
-    socket.to(roomId).emit(EVENT_ROOM_MESSAGE_SERVER, roomId, socket.id, message);
+  // When client sends a message to a room
+  socket.on(CLIENT_EVENT_ROOM_MESSAGE, (roomId, message) => {
+    socket.to(roomId).emit(SERVER_EVENT_ROOM_MESSAGE, roomId, socket.id, message);
   });
 
-  socket.on(EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT, (roomsToJoin) => {
+  // When client sends a 'bulk' join room message
+  socket.on(CLIENT_EVENT_USER_JOIN_MULTIPLE_ROOMS, (roomsToJoin) => {
     roomsToJoin.forEach((roomId) => {
       socket.join(roomId);
       usersRooms.push(roomId);
-      socket.to(roomId).emit(EVENT_USER_JOINED_ROOM_SERVER, socket.id, roomId);
+      socket.to(roomId).emit(SERVER_EVENT_USER_JOINED_ROOM, socket.id, roomId);
     });
   });
 
-  socket.on(EVENT_USER_MESSAGE_MULTIPLE_ROOMS_CLIENT, (roomsToMessage, message) => {
+  // When client sends a 'bulk' sends messages to rooms
+  socket.on(CLIENT_EVENT_USER_MESSAGE_MULTIPLE_ROOMS, (roomsToMessage, message) => {
     roomsToMessage.forEach((roomId) => {
-      socket.to(roomId).emit(EVENT_ROOM_MESSAGE_SERVER, roomId, socket.id, message);
+      socket.to(roomId).emit(SERVER_EVENT_ROOM_MESSAGE, roomId, socket.id, message);
     });
   });
 
-  socket.on(EVENT_FETCH_ROOM_MEMBERS_CLIENT, (roomId, callback) => {
+  // When client requests the members of some room
+  socket.on(CLIENT_EVENT_FETCH_ROOM_MEMBERS, (roomId, callback) => {
     console.log(JSON.stringify(Array.from(io.of('/').adapter.rooms.get(roomId))));
     callback({
       roomMembersIds: JSON.stringify(Array.from(io.of('/').adapter.rooms.get(roomId))),

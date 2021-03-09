@@ -1,46 +1,48 @@
 const socket = io();
 
 // Status constants
-const STATUS_REJECTED = 'REJECTED';
-const STATUS_ACCEPETED = 'ACCEPTED';
+const STATUS_REJECTED = 'STATUS_REJECTED';
+const STATUS_ACCEPETED = 'STATUS_ACCEPETED';
 
 // Client side events
-const EVENT_USERNAME = 'USERNAME';
-const EVENT_DIRECT_MESSAGE_CLIENT = 'DIRECT_MESSAGE_CLIENT';
-const EVENT_ADD_ROOM_CLIENT = 'ADD_ROOM_CLIENT';
-const EVENT_USER_JOINED_ROOM_CLIENT = 'USER_JOINED_ROOM_CLIENT';
-const EVENT_USER_LEFT_ROOM_CLIENT = 'USER_LEFT_ROOM_CLIENT';
-const EVENT_ROOM_MESSAGE_CLIENT = 'EVENT_ROOM_MESSAGE_CLIENT';
-const EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT = 'EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT';
-const EVENT_USER_MESSAGE_MULTIPLE_ROOMS_CLIENT = 'EVENT_USER_MESSAGE_MULTIPLE_ROOMS_CLIENT';
-const EVENT_FETCH_ROOM_MEMBERS_CLIENT = 'EVENT_FETCH_ROOM_MEMBERS_CLIENT';
+const CLIENT_EVENT_USERNAME = 'CLIENT_EVENT_USERNAME';
+const CLIENT_EVENT_DIRECT_MESSAGE = 'CLIENT_EVENT_DIRECT_MESSAGE';
+const CLIENT_EVENT_ADD_ROOM = 'CLIENT_EVENT_ADD_ROOM';
+const CLIENT_EVENT_USER_JOINED_ROOM = 'CLIENT_EVENT_USER_JOINED_ROOM';
+const CLIENT_EVENT_USER_LEFT_ROOM = 'CLIENT_EVENT_USER_LEFT_ROOM';
+const CLIENT_EVENT_ROOM_MESSAGE = 'CLIENT_EVENT_ROOM_MESSAGE';
+const CLIENT_EVENT_USER_JOIN_MULTIPLE_ROOMS = 'CLIENT_EVENT_USER_JOIN_MULTIPLE_ROOMS';
+const CLIENT_EVENT_USER_MESSAGE_MULTIPLE_ROOMS = 'CLIENT_EVENT_USER_MESSAGE_MULTIPLE_ROOMS';
+const CLIENT_EVENT_FETCH_ROOM_MEMBERS = 'CLIENT_EVENT_FETCH_ROOM_MEMBERS';
 
 // Server side events
-const EVENT_USER_JOINED = 'USER_JOINED';
-const EVENT_USER_LEFT = 'USER_LEFT';
-const EVENT_DIRECT_MESSAGE_SERVER = 'DIRECT_MESSAGE_SERVER';
-const EVENT_USER_ROOM_CREATED = 'ROOM_CREATED';
-const EVENT_USER_JOINED_ROOM_SERVER = 'USER_JOINED_ROOM_SERVER';
-const EVENT_USER_LEFT_ROOM_SERVER = 'USER_LEFT_ROOM_SERVER';
-const EVENT_ROOM_MESSAGE_SERVER = 'EVENT_ROOM_MESSAGE_SERVER';
-
-class Message {
-  constructor(from, content, strong = false) {
-    this.from = from;
-    this.content = content;
-    this.strong = strong;
-  }
-}
+const SERVER_EVENT_USER_JOINED = 'SERVER_EVENT_USER_JOINED';
+const SERVER_EVENT_USER_LEFT = 'SERVER_EVENT_USER_LEFT';
+const SERVER_EVENT_DIRECT_MESSAGE = 'SERVER_EVENT_DIRECT_MESSAGE';
+const SERVER_EVENT_USER_ROOM_CREATED = 'SERVER_EVENT_USER_ROOM_CREATED';
+const SERVER_EVENT_USER_JOINED_ROOM = 'SERVER_EVENT_USER_JOINED_ROOM';
+const SERVER_EVENT_USER_LEFT_ROOM = 'SERVER_EVENT_USER_LEFT_ROOM';
+const SERVER_EVENT_ROOM_MESSAGE = 'SERVER_EVENT_ROOM_MESSAGE';
 
 const ROOM_CONVERSATION_TYPE = 'ROOM';
 const USER_CONVERSATION_TYPE = 'USER';
 
+// Used inside Conversation class to keep track of messages in that conversation
+class Message {
+  constructor(from, content, strong = false) {
+    this.from = from; // Id of user who sent the message
+    this.content = content; // Message body
+    this.strong = strong; // Indicates if the message is bold (used for user left/joined messages)
+  }
+}
+
+// Used to store information about a conversation (works with dms and rooms)
 class Conversation {
   constructor(type, id, name) {
-    this.type = type;
-    this.id = id;
-    this.name = name;
-    this.messages = [];
+    this.type = type; // Either ROOM_CONVERSATION_TYPE or USER_CONVERSATION_TYPE
+    this.id = id; // Id of either user or room
+    this.name = name; // Name of user or room
+    this.messages = []; // List of messages in the conversation
   }
 }
 
@@ -64,28 +66,9 @@ $(document).ready(() => {
 
   const addRoomModalButton = $('#add-room-modal-button');
   const roomList = $('#room-list');
-  const listUsersButton = $('#list-users-button');
-
-  // Enable tooltips
-  $("[data-toggle='tooltip']").tooltip();
 
   /**
-  * Clears all the messages in the main message view
-  */
-  function clearMessages() {
-    $('#message-list').empty();
-  }
-
-  /**
-   * Initialize multiselects
-   */
-  $('.multi-select').each(function () {
-    $(this).select2({
-      theme: 'bootstrap4',
-    });
-  });
-
-  /**
+  * Render a message in the main view
   *
   * @param {Message} message message to be added to the message view
   */
@@ -118,7 +101,7 @@ $(document).ready(() => {
   /**
   * Focus a user for direct messaging
   *
-  * @param {string} userId id of user to be focused
+  * @param {string} userId Id of user to be focused
   */
   function focusUser(userId) {
     focusedConversationId = userId;
@@ -131,9 +114,9 @@ $(document).ready(() => {
   }
 
   /**
-  * Focus a room
+  * Focus a room in the main view
   *
-  * @param {string} roomId id of room to be focused
+  * @param {string} roomId Id of room to be focused
   */
   function focusRoom(roomId) {
     focusedConversationId = roomId;
@@ -145,6 +128,12 @@ $(document).ready(() => {
     $('#list-users-button').css('display', 'inline');
   }
 
+  /**
+   * Adds a user (to the list of conversations and the 'Users' sidebar)
+   *
+   * @param {string} newUserId Id of user to be added
+   * @param {string} newUserName Name of user to be added
+   */
   function addUser(newUserId, newUserName) {
     conversations.set(newUserId, new Conversation(USER_CONVERSATION_TYPE, newUserId, newUserName));
     const userEntryToAdd = `
@@ -168,14 +157,24 @@ $(document).ready(() => {
     });
   }
 
+  /**
+   * Joins a room given id
+   *
+   * @param {string} roomId Id of room to be joined
+   */
   function joinRoom(roomId) {
     usersRooms.push(roomId);
     $(`#${roomId}-join`).css('display', 'none');
     $(`#${roomId}-leave`).css('display', 'inline');
-    socket.emit(EVENT_USER_JOINED_ROOM_CLIENT, roomId);
+    socket.emit(CLIENT_EVENT_USER_JOINED_ROOM, roomId);
     focusRoom(roomId);
   }
 
+  /**
+   * Leaves a room given id
+   *
+   * @param {string} roomId // Id of room to be left
+   */
   function leaveRoom(roomId) {
     focusedConversationId = null;
     $(`#${roomId}-join`).css('display', 'inline');
@@ -183,14 +182,15 @@ $(document).ready(() => {
     $(`#${roomId}-read`).css('display', 'inline');
     $(`#${roomId}-unread`).css('display', 'none');
     usersRooms.splice(usersRooms.indexOf(roomId), 1);
-    socket.emit(EVENT_USER_LEFT_ROOM_CLIENT, roomId);
+    socket.emit(CLIENT_EVENT_USER_LEFT_ROOM, roomId);
   }
 
   /**
+   * Adds a room to the 'Rooms' sidebar
    *
-   * @param {string} roomId
-   * @param {string} roomName
-   * @param {boolean} joinAutomatically
+   * @param {string} roomId Room's id
+   * @param {string} roomName Room's name
+   * @param {boolean} joinAutomatically True if room should be focused after being added
    */
   function addRoom(roomId, roomName, joinAutomatically = false) {
     conversations.set(roomId, new Conversation(ROOM_CONVERSATION_TYPE, roomId, roomName));
@@ -252,7 +252,13 @@ $(document).ready(() => {
     });
   }
 
-  function createRoom(roomId, roomName) {
+  /**
+   * Used when user creates a room
+   *
+   * @param {string} roomId Id of the created room
+   * @param {string} roomName Name of the created room
+   */
+  function createdRoom(roomId, roomName) {
     addRoom(roomId, roomName);
     usersRooms.push(roomId);
     $(`#${roomId}-join`).css('display', 'none');
@@ -260,11 +266,32 @@ $(document).ready(() => {
     focusRoom(roomId);
   }
 
+  // Enable tooltips
+  $("[data-toggle='tooltip']").tooltip();
+
+  // Clears all the messages in the main message view
+  function clearMessages() {
+    $('#message-list').empty();
+  }
+
+  // Initialize multiselects
+  $('.multi-select').each(function () {
+    $(this).select2({
+      theme: 'bootstrap4',
+    });
+  });
+
+  // Called if server disconnects
+  socket.on('disconnect', () => {
+    alert('Oops looks like the server has disconnected!\nTry again later');
+    location.reload();
+  });
+
   // Registration form is submitted
   registrationForm.submit((event) => {
     event.preventDefault();
     userName = registrationNameInput.val();
-    socket.emit(EVENT_USERNAME, userName, (response) => {
+    socket.emit(CLIENT_EVENT_USERNAME, userName, (response) => {
       if (response.status === STATUS_ACCEPETED) {
         userList.empty();
         JSON.parse(response.activeUsers).forEach((entry) => {
@@ -285,7 +312,7 @@ $(document).ready(() => {
     });
   });
 
-  // User sends a message
+  // Called when user sends a message
   messageForm.submit((event) => {
     event.preventDefault();
     if (focusedConversationId != null) {
@@ -295,20 +322,21 @@ $(document).ready(() => {
       conversation.messages.push(messageObject);
       renderMessage(messageObject);
       if (conversation.type === ROOM_CONVERSATION_TYPE) {
-        socket.emit(EVENT_ROOM_MESSAGE_CLIENT, focusedConversationId, message);
+        socket.emit(CLIENT_EVENT_ROOM_MESSAGE, focusedConversationId, message);
       } else {
-        socket.emit(EVENT_DIRECT_MESSAGE_CLIENT, focusedConversationId, message);
+        socket.emit(CLIENT_EVENT_DIRECT_MESSAGE, focusedConversationId, message);
       }
     }
   });
 
+  // Called when user submits 'Add Room' modal
   addRoomModalButton.click(() => {
     const roomTitleInput = $('#room-name-input');
     const roomName = roomTitleInput.val();
     if (roomName !== '') {
-      socket.emit(EVENT_ADD_ROOM_CLIENT, roomName, (response) => {
+      socket.emit(CLIENT_EVENT_ADD_ROOM, roomName, (response) => {
         if (response.status === STATUS_ACCEPETED) {
-          createRoom(response.roomId, roomName);
+          createdRoom(response.roomId, roomName);
           $('#add-room-modal').modal('hide');
         } else {
           roomTitleInput.val('');
@@ -322,6 +350,7 @@ $(document).ready(() => {
     }
   });
 
+  // Called when user clicks 'Join Mutiple Rooms' button
   $('#join-multiple-rooms-button').click(() => {
     const joinMultipleRoomsSelect = $('#join-multiple-rooms-select');
     joinMultipleRoomsSelect.empty();
@@ -334,6 +363,7 @@ $(document).ready(() => {
     $('#join-multiple-rooms-input-error').css('display', 'none');
   });
 
+  // Called when user submits 'join multiple roooms' modal
   $('#submit-join-multiple-rooms-modal-button').click(() => {
     const selectedRooms = [];
     const multipleRoomsSelectData = $('#join-multiple-rooms-select').select2('data');
@@ -346,7 +376,7 @@ $(document).ready(() => {
         $(`#${roomId}-join`).css('display', 'none');
         $(`#${roomId}-leave`).css('display', 'inline');
       });
-      socket.emit(EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT, selectedRooms);
+      socket.emit(CLIENT_EVENT_USER_JOIN_MULTIPLE_ROOMS, selectedRooms);
       $('#add-join-multiple-rooms-modal').modal('hide');
     } else {
       $('#join-multiple-rooms-input-error').html('Select at least one room');
@@ -354,6 +384,7 @@ $(document).ready(() => {
     }
   });
 
+  // Called when user clicks 'Message multiple rooms' button
   $('#message-multiple-rooms-button').click(() => {
     const messageMultipleRoomsSelect = $('#message-multiple-rooms-select');
     messageMultipleRoomsSelect.empty();
@@ -364,6 +395,7 @@ $(document).ready(() => {
     $('#message-multiple-rooms-input-error').css('display', 'none');
   });
 
+  // Called when user submits 'Message multiple rooms' modal
   $('#submit-message-multiple-rooms-modal-button').click(() => {
     const selectedRooms = [];
     const multipleRoomsSelectData = $('#message-multiple-rooms-select').select2('data');
@@ -374,7 +406,7 @@ $(document).ready(() => {
         multipleRoomsSelectData.forEach((selectedOption) => {
           selectedRooms.push(selectedOption.element.value);
         });
-        socket.emit(EVENT_USER_MESSAGE_MULTIPLE_ROOMS_CLIENT, selectedRooms, message);
+        socket.emit(CLIENT_EVENT_USER_MESSAGE_MULTIPLE_ROOMS, selectedRooms, message);
         $('#message-multiple-rooms-modal').modal('hide');
       } else {
         $('#message-multiple-rooms-input-error').html('Select at least one room');
@@ -386,17 +418,20 @@ $(document).ready(() => {
     }
   });
 
+  // Called when user clicks the 'Add room' button
   $('#add-room-button').click(() => {
     $('#input-error').css('display', 'none');
   });
 
+  // Called when user clicks 'Disconnect from server' button
   $('#disconnect-button').on('click', () => {
     location.reload();
   });
 
+  // Called when user clicks 'List Users' button that appears for rooms
   $('#list-users-button').on('click', () => {
     $('#room-members').empty();
-    socket.emit(EVENT_FETCH_ROOM_MEMBERS_CLIENT, focusedConversationId, (response) => {
+    socket.emit(CLIENT_EVENT_FETCH_ROOM_MEMBERS, focusedConversationId, (response) => {
       JSON.parse(response.roomMembersIds).forEach((roomMemberId) => {
         if (roomMemberId !== socket.id) {
           $('#room-members').append(`<li class="list-group-item">${conversations.get(roomMemberId).name}</li>`);
@@ -406,16 +441,13 @@ $(document).ready(() => {
     $('#list-users-modal').modal('show');
   });
 
-  socket.on('disconnect', () => {
-    alert('Oops looks like the server has disconnected!\nTry again later');
-    location.reload();
-  });
-
-  socket.on(EVENT_USER_JOINED, (newUserId, newUserName) => {
+  // Called when user joins
+  socket.on(SERVER_EVENT_USER_JOINED, (newUserId, newUserName) => {
     addUser(newUserId, newUserName);
   });
 
-  socket.on(EVENT_USER_LEFT, (userId) => {
+  // Called when user leaves
+  socket.on(SERVER_EVENT_USER_LEFT, (userId) => {
     focusedConversationId = null;
     if (focusedConversationId === userId) {
       renderMessage(new Message(conversations.get(userId).name, 'Left the chat', true));
@@ -423,7 +455,8 @@ $(document).ready(() => {
     $(`#${userId}`).remove();
   });
 
-  socket.on(EVENT_DIRECT_MESSAGE_SERVER, (sourceUserId, message) => {
+  // Called when a direct message is recieved
+  socket.on(SERVER_EVENT_DIRECT_MESSAGE, (sourceUserId, message) => {
     const messageObject = new Message(conversations.get(sourceUserId).name, message);
     conversations.get(sourceUserId).messages.push(messageObject);
     if (focusedConversationId === sourceUserId) {
@@ -434,12 +467,14 @@ $(document).ready(() => {
     }
   });
 
-  socket.on(EVENT_USER_ROOM_CREATED, (roomId, roomName) => {
+  // Called when a room is created
+  socket.on(SERVER_EVENT_USER_ROOM_CREATED, (roomId, roomName) => {
     conversations.set(roomId, new Conversation(ROOM_CONVERSATION_TYPE, roomId, roomName));
     addRoom(roomId, roomName);
   });
 
-  socket.on(EVENT_USER_JOINED_ROOM_SERVER, (userId, roomId) => {
+  // Called when a user joins a room that the current user is in
+  socket.on(SERVER_EVENT_USER_JOINED_ROOM, (userId, roomId) => {
     const newMessage = new Message(conversations.get(userId).name, 'Joined the chat', true);
     conversations.get(roomId).messages.push(newMessage);
     if (focusedConversationId === roomId) {
@@ -447,7 +482,8 @@ $(document).ready(() => {
     }
   });
 
-  socket.on(EVENT_USER_LEFT_ROOM_SERVER, (userId, roomId) => {
+  // Called when a user leaves a room that the current user is in
+  socket.on(SERVER_EVENT_USER_LEFT_ROOM, (userId, roomId) => {
     const newMessage = new Message(conversations.get(userId).name, 'Left the chat', true);
     conversations.get(roomId).messages.push(newMessage);
     if (focusedConversationId === roomId) {
@@ -455,7 +491,8 @@ $(document).ready(() => {
     }
   });
 
-  socket.on(EVENT_ROOM_MESSAGE_SERVER, (roomId, userId, message) => {
+  // Called when a user sends a message to a room that the current user is in
+  socket.on(SERVER_EVENT_ROOM_MESSAGE, (roomId, userId, message) => {
     const newMessage = new Message(conversations.get(userId).name, message);
     conversations.get(roomId).messages.push(newMessage);
     if (focusedConversationId === roomId) {
