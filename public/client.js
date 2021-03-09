@@ -406,6 +406,11 @@ $(document).ready(() => {
     $('#list-users-modal').modal('show');
   });
 
+  socket.on('disconnect', () => {
+    alert('Oops looks like the server has disconnected!\nTry again later');
+    location.reload();
+  });
+
   socket.on(EVENT_USER_JOINED, (newUserId, newUserName) => {
     addUser(newUserId, newUserName);
   });
