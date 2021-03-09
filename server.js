@@ -22,6 +22,8 @@ const EVENT_USER_JOINED_ROOM_CLIENT = 'USER_JOINED_ROOM_CLIENT';
 const EVENT_USER_LEFT_ROOM_CLIENT = 'USER_LEFT_ROOM_CLIENT';
 const EVENT_ROOM_MESSAGE_CLIENT = 'EVENT_ROOM_MESSAGE_CLIENT';
 const EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT = 'EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT';
+const EVENT_USER_MESSAGE_MULTIPLE_ROOMS_CLIENT = 'EVENT_USER_MESSAGE_MULTIPLE_ROOMS_CLIENT';
+const EVENT_FETCH_ROOM_MEMBERS_CLIENT = 'EVENT_FETCH_ROOM_MEMBERS_CLIENT';
 
 // Server side events
 const EVENT_USER_JOINED = 'USER_JOINED';
@@ -41,11 +43,11 @@ app.get('/', (req, res) => {
 
 io.on('connection', (socket) => {
   const usersRooms = []; // List of rooms where user is a member
+
   socket.on('disconnect', () => {
     if (users.has(socket.id)) {
       users.delete(socket.id);
       socket.broadcast.emit(EVENT_USER_LEFT, socket.id);
-      // TODO HANDLE ROOMS
     }
   });
 
@@ -63,6 +65,7 @@ io.on('connection', (socket) => {
     callback({
       status: callbackStatus,
       activeUsers: JSON.stringify(Array.from(users)),
+      rooms: JSON.stringify(Array.from(rooms)),
     });
   });
 
@@ -107,6 +110,19 @@ io.on('connection', (socket) => {
       socket.join(roomId);
       usersRooms.push(roomId);
       socket.to(roomId).emit(EVENT_USER_JOINED_ROOM_SERVER, socket.id, roomId);
+    });
+  });
+
+  socket.on(EVENT_USER_MESSAGE_MULTIPLE_ROOMS_CLIENT, (roomsToMessage, message) => {
+    roomsToMessage.forEach((roomId) => {
+      socket.to(roomId).emit(EVENT_ROOM_MESSAGE_SERVER, roomId, socket.id, message);
+    });
+  });
+
+  socket.on(EVENT_FETCH_ROOM_MEMBERS_CLIENT, (roomId, callback) => {
+    console.log(JSON.stringify(Array.from(io.of('/').adapter.rooms.get(roomId))));
+    callback({
+      roomMembersIds: JSON.stringify(Array.from(io.of('/').adapter.rooms.get(roomId))),
     });
   });
 });

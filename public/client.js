@@ -12,6 +12,9 @@ const EVENT_USER_JOINED_ROOM_CLIENT = 'USER_JOINED_ROOM_CLIENT';
 const EVENT_USER_LEFT_ROOM_CLIENT = 'USER_LEFT_ROOM_CLIENT';
 const EVENT_ROOM_MESSAGE_CLIENT = 'EVENT_ROOM_MESSAGE_CLIENT';
 const EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT = 'EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT';
+const EVENT_USER_MESSAGE_MULTIPLE_ROOMS_CLIENT = 'EVENT_USER_MESSAGE_MULTIPLE_ROOMS_CLIENT';
+const EVENT_FETCH_ROOM_MEMBERS_CLIENT = 'EVENT_FETCH_ROOM_MEMBERS_CLIENT';
+
 // Server side events
 const EVENT_USER_JOINED = 'USER_JOINED';
 const EVENT_USER_LEFT = 'USER_LEFT';
@@ -61,6 +64,7 @@ $(document).ready(() => {
 
   const addRoomModalButton = $('#add-room-modal-button');
   const roomList = $('#room-list');
+  const listUsersButton = $('#list-users-button');
 
   // Enable tooltips
   $("[data-toggle='tooltip']").tooltip();
@@ -75,8 +79,10 @@ $(document).ready(() => {
   /**
    * Initialize multiselects
    */
-  $('.multi-select').select2({
-    theme: 'bootstrap4',
+  $('.multi-select').each(function () {
+    $(this).select2({
+      theme: 'bootstrap4',
+    });
   });
 
   /**
@@ -121,6 +127,7 @@ $(document).ready(() => {
     loadMessages(conversations.get(userId).messages);
     $(`#${userId}-unread`).css('display', 'none');
     $(`#${userId}-read`).css('display', 'inline');
+    $('#list-users-button').css('display', 'none');
   }
 
   /**
@@ -135,6 +142,7 @@ $(document).ready(() => {
     loadMessages(conversations.get(roomId).messages);
     $(`#${roomId}-unread`).css('display', 'none');
     $(`#${roomId}-read`).css('display', 'inline');
+    $('#list-users-button').css('display', 'inline');
   }
 
   function addUser(newUserId, newUserName) {
@@ -246,7 +254,10 @@ $(document).ready(() => {
 
   function createRoom(roomId, roomName) {
     addRoom(roomId, roomName);
-    joinRoom(roomId);
+    usersRooms.push(roomId);
+    $(`#${roomId}-join`).css('display', 'none');
+    $(`#${roomId}-leave`).css('display', 'inline');
+    focusRoom(roomId);
   }
 
   // Registration form is submitted
@@ -255,10 +266,13 @@ $(document).ready(() => {
     userName = registrationNameInput.val();
     socket.emit(EVENT_USERNAME, userName, (response) => {
       if (response.status === STATUS_ACCEPETED) {
-        // TODO ADD ROOMS
         userList.empty();
         JSON.parse(response.activeUsers).forEach((entry) => {
           if (entry[0] !== socket.id) { addUser(entry[0], entry[1]); }
+        });
+
+        JSON.parse(response.rooms).forEach((entry) => {
+          addRoom(entry[0], entry[1]);
         });
 
         alert(`Welcome ${userName}`);
@@ -298,13 +312,13 @@ $(document).ready(() => {
           $('#add-room-modal').modal('hide');
         } else {
           roomTitleInput.val('');
-          $('#input-error').html('Room name already taken');
-          $('#input-error').css('display', 'flex');
+          $('#add-room-input-error').html('Room name already taken');
+          $('#add-room-input-error').css('display', 'flex');
         }
       });
     } else {
-      $('#input-error').html('Input must be non-empty');
-      $('#input-error').css('display', 'flex');
+      $('#add-room-input-error').html('Input must be non-empty');
+      $('#add-room-input-error').css('display', 'flex');
     }
   });
 
@@ -317,6 +331,59 @@ $(document).ready(() => {
         joinMultipleRoomsSelect.append(`<option value="${conversation.id}">${conversation.name}</option>`);
       }
     });
+    $('#join-multiple-rooms-input-error').css('display', 'none');
+  });
+
+  $('#submit-join-multiple-rooms-modal-button').click(() => {
+    const selectedRooms = [];
+    const multipleRoomsSelectData = $('#join-multiple-rooms-select').select2('data');
+
+    if (multipleRoomsSelectData.length !== 0) {
+      multipleRoomsSelectData.forEach((selectedOption) => {
+        const roomId = selectedOption.element.value;
+        selectedRooms.push(roomId);
+        usersRooms.push(roomId);
+        $(`#${roomId}-join`).css('display', 'none');
+        $(`#${roomId}-leave`).css('display', 'inline');
+      });
+      socket.emit(EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT, selectedRooms);
+      $('#add-join-multiple-rooms-modal').modal('hide');
+    } else {
+      $('#join-multiple-rooms-input-error').html('Select at least one room');
+      $('#join-multiple-rooms-input-error').css('display', 'flex');
+    }
+  });
+
+  $('#message-multiple-rooms-button').click(() => {
+    const messageMultipleRoomsSelect = $('#message-multiple-rooms-select');
+    messageMultipleRoomsSelect.empty();
+
+    usersRooms.forEach((roomId) => {
+      messageMultipleRoomsSelect.append(`<option value="${roomId}">${conversations.get(roomId).name}</option>`);
+    });
+    $('#message-multiple-rooms-input-error').css('display', 'none');
+  });
+
+  $('#submit-message-multiple-rooms-modal-button').click(() => {
+    const selectedRooms = [];
+    const multipleRoomsSelectData = $('#message-multiple-rooms-select').select2('data');
+    const message = $('#multiple-room-message-input').val();
+
+    if (message !== '') {
+      if (multipleRoomsSelectData.length !== 0) {
+        multipleRoomsSelectData.forEach((selectedOption) => {
+          selectedRooms.push(selectedOption.element.value);
+        });
+        socket.emit(EVENT_USER_MESSAGE_MULTIPLE_ROOMS_CLIENT, selectedRooms, message);
+        $('#message-multiple-rooms-modal').modal('hide');
+      } else {
+        $('#message-multiple-rooms-input-error').html('Select at least one room');
+        $('#message-multiple-rooms-input-error').css('display', 'flex');
+      }
+    } else {
+      $('#message-multiple-rooms-input-error').html('Provide a message to send');
+      $('#message-multiple-rooms-input-error').css('display', 'flex');
+    }
   });
 
   $('#add-room-button').click(() => {
@@ -327,17 +394,16 @@ $(document).ready(() => {
     location.reload();
   });
 
-  $('#submit-join-multiple-rooms-modal-button').click(() => {
-    const selectedRooms = [];
-    $('#join-multiple-rooms-select').select2('data').forEach((selectedOption) => {
-      const roomId = selectedOption.element.value;
-      selectedRooms.push(roomId);
-      usersRooms.push(roomId);
-      $(`#${roomId}-join`).css('display', 'none');
-      $(`#${roomId}-leave`).css('display', 'inline');
+  $('#list-users-button').on('click', () => {
+    $('#room-members').empty();
+    socket.emit(EVENT_FETCH_ROOM_MEMBERS_CLIENT, focusedConversationId, (response) => {
+      JSON.parse(response.roomMembersIds).forEach((roomMemberId) => {
+        if (roomMemberId !== socket.id) {
+          $('#room-members').append(`<li class="list-group-item">${conversations.get(roomMemberId).name}</li>`);
+        }
+      });
     });
-
-    socket.emit(EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT, selectedRooms);
+    $('#list-users-modal').modal('show');
   });
 
   socket.on(EVENT_USER_JOINED, (newUserId, newUserName) => {

@@ -41,6 +41,12 @@ input[type="text"], textarea {
     box-shadow:none !important;
     border:1px solid #6c757d  !important;
 }
+
+.select2-selection {
+    outline: none;
+    box-shadow:none !important;
+    border:1px solid #6c757d  !important;
+}
     
 .invalid-indicator {
     color: red !important;
