@@ -11,7 +11,7 @@ const EVENT_ADD_ROOM_CLIENT = 'ADD_ROOM_CLIENT';
 const EVENT_USER_JOINED_ROOM_CLIENT = 'USER_JOINED_ROOM_CLIENT';
 const EVENT_USER_LEFT_ROOM_CLIENT = 'USER_LEFT_ROOM_CLIENT';
 const EVENT_ROOM_MESSAGE_CLIENT = 'EVENT_ROOM_MESSAGE_CLIENT';
-
+const EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT = 'EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT';
 // Server side events
 const EVENT_USER_JOINED = 'USER_JOINED';
 const EVENT_USER_LEFT = 'USER_LEFT';
@@ -60,7 +60,6 @@ $(document).ready(() => {
   const userList = $('#user-list');
 
   const addRoomModalButton = $('#add-room-modal-button');
-  const addRoomButton = $('#add-room-button');
   const roomList = $('#room-list');
 
   // Enable tooltips
@@ -72,6 +71,13 @@ $(document).ready(() => {
   function clearMessages() {
     $('#message-list').empty();
   }
+
+  /**
+   * Initialize multiselects
+   */
+  $('.multi-select').select2({
+    theme: 'bootstrap4',
+  });
 
   /**
   *
@@ -240,7 +246,6 @@ $(document).ready(() => {
 
   function createRoom(roomId, roomName) {
     addRoom(roomId, roomName);
-    usersRooms.push(roomId);
     joinRoom(roomId);
   }
 
@@ -250,6 +255,7 @@ $(document).ready(() => {
     userName = registrationNameInput.val();
     socket.emit(EVENT_USERNAME, userName, (response) => {
       if (response.status === STATUS_ACCEPETED) {
+        // TODO ADD ROOMS
         userList.empty();
         JSON.parse(response.activeUsers).forEach((entry) => {
           if (entry[0] !== socket.id) { addUser(entry[0], entry[1]); }
@@ -282,18 +288,14 @@ $(document).ready(() => {
     }
   });
 
-  addRoomButton.click(() => {
-    $('#input-error').css('display', 'none');
-  });
-
   addRoomModalButton.click(() => {
-    // TODO make modal go away
     const roomTitleInput = $('#room-name-input');
     const roomName = roomTitleInput.val();
     if (roomName !== '') {
       socket.emit(EVENT_ADD_ROOM_CLIENT, roomName, (response) => {
         if (response.status === STATUS_ACCEPETED) {
           createRoom(response.roomId, roomName);
+          $('#add-room-modal').modal('hide');
         } else {
           roomTitleInput.val('');
           $('#input-error').html('Room name already taken');
@@ -304,6 +306,38 @@ $(document).ready(() => {
       $('#input-error').html('Input must be non-empty');
       $('#input-error').css('display', 'flex');
     }
+  });
+
+  $('#join-multiple-rooms-button').click(() => {
+    const joinMultipleRoomsSelect = $('#join-multiple-rooms-select');
+    joinMultipleRoomsSelect.empty();
+
+    conversations.forEach((conversation) => {
+      if (conversation.type === ROOM_CONVERSATION_TYPE && !usersRooms.includes(conversation.id)) {
+        joinMultipleRoomsSelect.append(`<option value="${conversation.id}">${conversation.name}</option>`);
+      }
+    });
+  });
+
+  $('#add-room-button').click(() => {
+    $('#input-error').css('display', 'none');
+  });
+
+  $('#disconnect-button').on('click', () => {
+    location.reload();
+  });
+
+  $('#submit-join-multiple-rooms-modal-button').click(() => {
+    const selectedRooms = [];
+    $('#join-multiple-rooms-select').select2('data').forEach((selectedOption) => {
+      const roomId = selectedOption.element.value;
+      selectedRooms.push(roomId);
+      usersRooms.push(roomId);
+      $(`#${roomId}-join`).css('display', 'none');
+      $(`#${roomId}-leave`).css('display', 'inline');
+    });
+
+    socket.emit(EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT, selectedRooms);
   });
 
   socket.on(EVENT_USER_JOINED, (newUserId, newUserName) => {
@@ -336,7 +370,7 @@ $(document).ready(() => {
 
   socket.on(EVENT_USER_JOINED_ROOM_SERVER, (userId, roomId) => {
     const newMessage = new Message(conversations.get(userId).name, 'Joined the chat', true);
-    conversations.get(userId).messages.push(newMessage);
+    conversations.get(roomId).messages.push(newMessage);
     if (focusedConversationId === roomId) {
       renderMessage(newMessage);
     }
@@ -357,7 +391,7 @@ $(document).ready(() => {
       renderMessage(newMessage);
     } else {
       $(`#${roomId}-read`).css('display', 'none');
-      $(`#${roomId}-unread`).css('display', 'block');
+      $(`#${roomId}-unread`).css('display', 'inline');
     }
   });
 });

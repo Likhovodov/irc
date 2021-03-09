@@ -12,8 +12,23 @@ body {
     background-color: #a1a9b5;
 }
 
-.card {
+/* .card {
     height:80vh;
+} */
+#main-card {
+    height: 64vh;
+}
+
+#bulk-card {
+    height: 16vh;
+}
+
+#users-card {
+    height: 80vh;
+}
+
+#rooms-card {
+    height: 80vh;
 }
 
 .scroll {

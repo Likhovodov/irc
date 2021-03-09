@@ -21,6 +21,7 @@ const EVENT_ADD_ROOM_CLIENT = 'ADD_ROOM_CLIENT';
 const EVENT_USER_JOINED_ROOM_CLIENT = 'USER_JOINED_ROOM_CLIENT';
 const EVENT_USER_LEFT_ROOM_CLIENT = 'USER_LEFT_ROOM_CLIENT';
 const EVENT_ROOM_MESSAGE_CLIENT = 'EVENT_ROOM_MESSAGE_CLIENT';
+const EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT = 'EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT';
 
 // Server side events
 const EVENT_USER_JOINED = 'USER_JOINED';
@@ -72,7 +73,7 @@ io.on('connection', (socket) => {
   socket.on(EVENT_ADD_ROOM_CLIENT, (roomName, callback) => {
     let callbackStatus = STATUS_REJECTED;
     const newRoomId = uuid.v4();
-    if (!io.of('/').adapter.rooms.has(newRoomId)) {
+    if (!Array.from(rooms.values()).includes(roomName)) {
       callbackStatus = STATUS_ACCEPETED;
       socket.join(newRoomId);
       rooms.set(newRoomId, roomName);
@@ -99,6 +100,14 @@ io.on('connection', (socket) => {
 
   socket.on(EVENT_ROOM_MESSAGE_CLIENT, (roomId, message) => {
     socket.to(roomId).emit(EVENT_ROOM_MESSAGE_SERVER, roomId, socket.id, message);
+  });
+
+  socket.on(EVENT_USER_JOIN_MULTIPLE_ROOMS_CLIENT, (roomsToJoin) => {
+    roomsToJoin.forEach((roomId) => {
+      socket.join(roomId);
+      usersRooms.push(roomId);
+      socket.to(roomId).emit(EVENT_USER_JOINED_ROOM_SERVER, socket.id, roomId);
+    });
   });
 });
 
