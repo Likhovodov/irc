@@ -8,8 +8,8 @@ const STATUS_ACCEPETED = 'STATUS_ACCEPETED';
 const CLIENT_EVENT_USERNAME = 'CLIENT_EVENT_USERNAME';
 const CLIENT_EVENT_DIRECT_MESSAGE = 'CLIENT_EVENT_DIRECT_MESSAGE';
 const CLIENT_EVENT_ADD_ROOM = 'CLIENT_EVENT_ADD_ROOM';
-const CLIENT_EVENT_USER_JOINED_ROOM = 'CLIENT_EVENT_USER_JOINED_ROOM';
-const CLIENT_EVENT_USER_LEFT_ROOM = 'CLIENT_EVENT_USER_LEFT_ROOM';
+const CLIENT_EVENT_USER_JOIN_ROOM = 'CLIENT_EVENT_USER_JOIN_ROOM';
+const CLIENT_EVENT_USER_LEAVE_ROOM = 'CLIENT_EVENT_USER_LEAVE_ROOM';
 const CLIENT_EVENT_ROOM_MESSAGE = 'CLIENT_EVENT_ROOM_MESSAGE';
 const CLIENT_EVENT_USER_JOIN_MULTIPLE_ROOMS = 'CLIENT_EVENT_USER_JOIN_MULTIPLE_ROOMS';
 const CLIENT_EVENT_USER_MESSAGE_MULTIPLE_ROOMS = 'CLIENT_EVENT_USER_MESSAGE_MULTIPLE_ROOMS';
@@ -19,7 +19,7 @@ const CLIENT_EVENT_FETCH_ROOM_MEMBERS = 'CLIENT_EVENT_FETCH_ROOM_MEMBERS';
 const SERVER_EVENT_USER_JOINED = 'SERVER_EVENT_USER_JOINED';
 const SERVER_EVENT_USER_LEFT = 'SERVER_EVENT_USER_LEFT';
 const SERVER_EVENT_DIRECT_MESSAGE = 'SERVER_EVENT_DIRECT_MESSAGE';
-const SERVER_EVENT_USER_ROOM_CREATED = 'SERVER_EVENT_USER_ROOM_CREATED';
+const SERVER_EVENT_ROOM_CREATED = 'SERVER_EVENT_ROOM_CREATED';
 const SERVER_EVENT_USER_JOINED_ROOM = 'SERVER_EVENT_USER_JOINED_ROOM';
 const SERVER_EVENT_USER_LEFT_ROOM = 'SERVER_EVENT_USER_LEFT_ROOM';
 const SERVER_EVENT_ROOM_MESSAGE = 'SERVER_EVENT_ROOM_MESSAGE';
@@ -166,7 +166,7 @@ $(document).ready(() => {
     usersRooms.push(roomId);
     $(`#${roomId}-join`).css('display', 'none');
     $(`#${roomId}-leave`).css('display', 'inline');
-    socket.emit(CLIENT_EVENT_USER_JOINED_ROOM, roomId);
+    socket.emit(CLIENT_EVENT_USER_JOIN_ROOM, roomId);
     focusRoom(roomId);
   }
 
@@ -182,7 +182,7 @@ $(document).ready(() => {
     $(`#${roomId}-read`).css('display', 'inline');
     $(`#${roomId}-unread`).css('display', 'none');
     usersRooms.splice(usersRooms.indexOf(roomId), 1);
-    socket.emit(CLIENT_EVENT_USER_LEFT_ROOM, roomId);
+    socket.emit(CLIENT_EVENT_USER_LEAVE_ROOM, roomId);
   }
 
   /**
@@ -247,6 +247,7 @@ $(document).ready(() => {
     });
 
     $(`#${roomId}-leave`).on('click', (event) => {
+      // Handle if focused
       event.stopPropagation();
       leaveRoom(roomId);
     });
@@ -315,7 +316,7 @@ $(document).ready(() => {
   // Called when user sends a message
   messageForm.submit((event) => {
     event.preventDefault();
-    if (focusedConversationId != null) {
+    if (focusedConversationId !== null) {
       const message = messageInput.val();
       const messageObject = new Message(userName, message);
       const conversation = conversations.get(focusedConversationId);
@@ -437,6 +438,9 @@ $(document).ready(() => {
           $('#room-members').append(`<li class="list-group-item">${conversations.get(roomMemberId).name}</li>`);
         }
       });
+      if (response.roomMemberId.length === 0) {
+        $('#room-members').append('<li class="list-group-item">You are the only one here ):</li>');
+      }
     });
     $('#list-users-modal').modal('show');
   });
@@ -448,8 +452,8 @@ $(document).ready(() => {
 
   // Called when user leaves
   socket.on(SERVER_EVENT_USER_LEFT, (userId) => {
-    focusedConversationId = null;
     if (focusedConversationId === userId) {
+      focusedConversationId = null;
       renderMessage(new Message(conversations.get(userId).name, 'Left the chat', true));
     }
     $(`#${userId}`).remove();
@@ -468,7 +472,7 @@ $(document).ready(() => {
   });
 
   // Called when a room is created
-  socket.on(SERVER_EVENT_USER_ROOM_CREATED, (roomId, roomName) => {
+  socket.on(SERVER_EVENT_ROOM_CREATED, (roomId, roomName) => {
     conversations.set(roomId, new Conversation(ROOM_CONVERSATION_TYPE, roomId, roomName));
     addRoom(roomId, roomName);
   });
